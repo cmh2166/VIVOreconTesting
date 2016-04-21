@@ -7,12 +7,9 @@ import json
 import sys
 import ecommonsharvest
 from fuzzywuzzy import fuzz
-import os.path, time
+import os.path
+import time
 """
-Values-matching, if > 85:
-generate eCommons update with URIs
-generate VIVO updates with handles, role
-
 Validate matches = specializations?
 """
 VIVO = rdflib.Namespace("http://vivoweb.org/ontology/core#")
@@ -75,6 +72,7 @@ def eCommonsXMLtoDict(eCommonsXML):
 def eCommonsRoles(eCommonsDict):
     """Grab eCommons records only with wanted roles."""
     eCommonsSubset = {}
+    eCommonsSubset['record'] = []
     print("Getting only eCommons records with chosen roles.")
     for n in range(len(eCommonsDict['OAI-PMH']['ListRecords']['record'])):
         try:
@@ -85,7 +83,7 @@ def eCommonsRoles(eCommonsDict):
             field = metadata['dim:dim']['dim:field'][m]
             try:
                 if field['@element'] == 'contributor' and field['@qualifier'] in roles:
-                    eCommonsSubset['record'] = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
+                    eCommonsSubset['record'].append(eCommonsDict['OAI-PMH']['ListRecords']['record'][n])
                     pass
                 else:
                     pass
@@ -103,32 +101,38 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
     VIVOmatches = {}
     eCommonsMatched = {}
     for n in range(len(eCommonsDict['record'])):
-        record = ['record'][n]
+        record = eCommonsDict['record'][n]
         metadata = record['metadata']
         for m in range(len(metadata['dim:dim']['dim:field'])):
-            field = metadata['dim:dim']['dim:field'][m]
-            if field['@element'] == 'identifier' and field['@qualifier'] == 'uri':
-                handle = field['#text']
+            try:
+                field = metadata['dim:dim']['dim:field'][m]
+                if field['@element'] == 'identifier' and field['@qualifier'] == 'uri':
+                    handle = field['#text']
+            except KeyError:
+                pass
         for m in range(len(metadata['dim:dim']['dim:field'])):
-            field = metadata['dim:dim']['dim:field'][m]
-            if field['@element'] == 'contributor' and field['@qualifier'] in roles:
-                for uri, label in VIVOppl.items():
-                    matchranking = fuzz.ratio(label, field['#text'])
-                    print("Matching: " + label + " to " + field['#text'] +
-                          " with score: " + str(matchranking))
-                    if matchranking > 90:
-                        VIVOmatches[label] = {}
-                        VIVOmatches[label]['uri'] = uri
-                        VIVOmatches[label]['label'] = label
-                        VIVOmatches[label]['handle'] = handle
-                        VIVOmatches[label]['role'] = field['@qualifier']
-                        VIVOmatches[label]['eCommonsLabel'] = field['#text']
-                        eCommonsMatched[handle] = record
-                        vivoaddition = {}
-                        vivoaddition['@element'] = 'contributor'
-                        vivoaddition['@qualified'] = field['@qualifier'] + "_uri"
-                        vivoaddition['#text'] = uri
-                        eCommonsMatched[handle]['metadata']['dim:dim']['dim:field'] = vivoaddition
+            try:
+                field = metadata['dim:dim']['dim:field'][m]
+                if field['@element'] == 'contributor' and field['@qualifier'] in roles:
+                    for uri, label in VIVOppl.items():
+                        matchranking = fuzz.ratio(label, field['#text'])
+                        print("Matching: " + label + " to " + field['#text'] +
+                              " with score: " + str(matchranking))
+                        if matchranking > 90:
+                            VIVOmatches[label] = {}
+                            VIVOmatches[label]['uri'] = uri
+                            VIVOmatches[label]['label'] = label
+                            VIVOmatches[label]['handle'] = handle
+                            VIVOmatches[label]['role'] = field['@qualifier']
+                            VIVOmatches[label]['eCommonsLabel'] = field['#text']
+                            eCommonsMatched[handle] = record
+                            vivoaddition = {}
+                            vivoaddition['@element'] = 'contributor'
+                            vivoaddition['@qualified'] = field['@qualifier'] + "_uri"
+                            vivoaddition['#text'] = uri
+                            eCommonsMatched[handle]['metadata']['dim:dim']['dim:field'] = vivoaddition
+            except KeyError:
+                pass
     return(VIVOmatches, eCommonsMatched)
 
 
@@ -136,12 +140,13 @@ def writeVIVOtoCsv(dictionary):
     """Write the matching outputs to CSV for reingest."""
     with open('data/VIVOmatched.csv', 'w') as f:
         w = csv.DictWriter(f, dictionary.keys())
+        w.writeheader()
         w.writerow(dictionary)
 
 
 def writeECtoCsv(dictionary):
     """Write the matching outputs to JSON for now. To be fixed."""
-    with open('data/ECmatched.json') as f:
+    with open('data/ECmatched.json', 'w') as f:
         json.dump(dictionary, f)
 
 
