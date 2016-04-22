@@ -4,7 +4,6 @@ from rdflib.namespace import RDF, FOAF
 import xmltodict
 import csv
 import json
-import sys
 import ecommonsharvest
 from fuzzywuzzy import fuzz
 import os.path
@@ -98,9 +97,10 @@ def eCommonsRoles(eCommonsDict):
 
 
 def matchingAlgos(string1, string2):
+    """using variety of matching algorithms to get results."""
     matchranking = fuzz.ratio(string1, string2)
-    matchranking2 = strikeamatch.compare_strings(string1, string2)
-    if matchranking > 75 or matchranking2 > .7:
+    matchranking2 = strikeamatch.compare_strings(string1, string2) * 100
+    if matchranking > 85 or matchranking2 > 80:
         print("Matching: " + string1 + " to " + string2 + " with scores: " +
               str(matchranking) + ' | ' + str(matchranking2))
     return(matchranking)
@@ -184,13 +184,13 @@ def writeECtoCsv(dictionary):
 
 def main():
     """Main function: run people matching."""
-    parser = argparse.ArgumentParser(usage='%(prog)s [options]')
+    parser = argparse.ArgumentParser(usage='python %(prog)s [options]')
     parser.add_argument("-u", "--uri", dest="uri", help="1 uri")
     parser.add_argument("-f", "--file", dest="file", help="file of URIs")
 
     args = parser.parse_args()
 
-    if not len(sys.argv) > 0:
+    if not args.uri and not args.file:
         parser.print_help()
         parser.exit()
 
