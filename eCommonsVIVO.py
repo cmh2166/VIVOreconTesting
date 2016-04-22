@@ -98,16 +98,28 @@ def eCommonsRoles(eCommonsDict):
 def compareECtoVIVO(VIVOppl, eCommonsDict):
     """compare eCommons to VIVO."""
     print('Now matching VIVO to eCommons')
-    VIVOmatches = {}
-    eCommonsMatched = {}
+    VIVOmatches = []
+    eCommonsMatched = []
     for n in range(len(eCommonsDict['record'])):
+        handle = None
+        subjs = []
         record = eCommonsDict['record'][n]
+        oaiID = record['header']['identifier']
+        setSpecs = []
+        setSpecs.append(record['header']['setSpec'])
         metadata = record['metadata']
         for m in range(len(metadata['dim:dim']['dim:field'])):
             try:
                 field = metadata['dim:dim']['dim:field'][m]
                 if field['@element'] == 'identifier' and field['@qualifier'] == 'uri':
                     handle = field['#text']
+            except KeyError:
+                pass
+
+            try:
+                field = metadata['dim:dim']['dim:field'][m]
+                if field['@element'] == 'subject':
+                    subjs.append(field['#text'])
             except KeyError:
                 pass
         for m in range(len(metadata['dim:dim']['dim:field'])):
@@ -119,19 +131,21 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                         print("Matching: " + label + " to " + field['#text'] +
                               " with score: " + str(matchranking))
                         if matchranking > 90:
-                            VIVOmatches[label] = {}
-                            VIVOmatches[label]['uri'] = uri
-                            VIVOmatches[label]['label'] = label
-                            VIVOmatches[label]['handle'] = handle
-                            VIVOmatches[label]['role'] = field['@qualifier']
-                            VIVOmatches[label]['eCommonsLabel'] = field['#text']
-                            eCommonsMatched[handle] = record
-                            vivoaddition = {}
-                            vivoaddition['@element'] = 'contributor'
-                            vivoaddition['@qualified'] = field['@qualifier'] + "_uri"
-                            vivoaddition['#text'] = uri
-                            eCommonsMatched[handle]['metadata']['dim:dim']['dim:field'] = vivoaddition
+                            VIVOmatchrow = [uri, label, handle]
+                            VIVOmatchrow.append(field['@qualifier'])
+                            VIVOmatchrow.append(field['#text'])
+                            VIVOmatchrow.append(subjs)
+                            VIVOmatches.append(VIVOmatchrow)
+                            ECmatchrow = []
+                            ECmatchrow.append(handle)
+                            ECmatchrow.append(setSpecs)
+                            ECmatchrow.append(oaiID)
+                            ECmatchrow.append(subjs)
+                            ECmatchrow.append(field['@element'])
+                            ECmatchrow.append(field['@qualifier'])
+                            ECmatchrow.append(uri)
             except KeyError:
+                print('KEY ERROR AT ' + str(oaiID))
                 pass
     return(VIVOmatches, eCommonsMatched)
 
@@ -139,15 +153,21 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
 def writeVIVOtoCsv(dictionary):
     """Write the matching outputs to CSV for reingest."""
     with open('data/VIVOmatched.csv', 'w') as f:
-        w = csv.DictWriter(f, dictionary.keys())
-        w.writeheader()
-        w.writerow(dictionary)
+        w = csv.writer(f)
+        header = ['uri', 'label', 'EChandle', 'element qualifier', 'EClabel',
+                  'EC Subjects']
+        w.writerow(header)
+        w.writerows(dictionary)
 
 
 def writeECtoCsv(dictionary):
     """Write the matching outputs to JSON for now. To be fixed."""
     with open('data/ECmatched.json', 'w') as f:
-        json.dump(dictionary, f)
+        w = csv.writer(f)
+        header = ['handle', 'set', 'oaiID', 'subjects', 'element', 'qualifier',
+                  'VIVO URI']
+        w.writerow(header)
+        w.writerows(dictionary)
 
 
 def main():
