@@ -10,6 +10,7 @@ from fuzzywuzzy import fuzz
 import os.path
 import time
 import strikeamatch
+import argparse
 """
 Validate matches = specializations?
 """
@@ -183,27 +184,33 @@ def writeECtoCsv(dictionary):
 
 def main():
     """Main function: run people matching."""
-    try:
-        deptURI = sys.argv[1]
-    except IndexError:
-        print("Please provide a URI or list of URIs")
-        exit()
-    if type(deptURI) is str or type(deptURI) is list:
+    parser = argparse.ArgumentParser(usage='%(prog)s [options]')
+    parser.add_argument("-u", "--uri", dest="uri", help="1 uri")
+    parser.add_argument("-f", "--file", dest="file", help="file of URIs")
+
+    args = parser.parse_args()
+
+    if not len(sys.argv) > 0:
+        parser.print_help()
+        parser.exit()
+
+    if args.uri:
         # grab VIVO data
-        VIVOppl = getVIVOppl(deptURI)
-        # grab eCommons data
-        retrieveECommons()
-        eCommonsAll = eCommonsXMLtoDict("data/eCommons.xml")
-        # only review records that have roles to be queried
-        eCommonsSubset = eCommonsRoles(eCommonsAll)
-        # compare eCommonsSubset with VIVO names
-        VIVOmatched, eCommonsMatched = compareECtoVIVO(VIVOppl, eCommonsSubset)
-        # write updates to csv for reingest
-        writeVIVOtoCsv(VIVOmatched)
-        writeECtoCsv(eCommonsMatched)
-    else:
-        print("Please provide a URI or list of URIs as a text file")
-        exit()
+        VIVOppl = getVIVOppl(args.uri)
+    elif args.file:
+        with open(args.file) as f:
+            URIs = f.readlines()
+        VIVOppl = getVIVOppl(URIs)
+    # grab eCommons data
+    retrieveECommons()
+    eCommonsAll = eCommonsXMLtoDict("data/eCommons.xml")
+    # only review records that have roles to be queried
+    eCommonsSubset = eCommonsRoles(eCommonsAll)
+    # compare eCommonsSubset with VIVO names
+    VIVOmatched, eCommonsMatched = compareECtoVIVO(VIVOppl, eCommonsSubset)
+    # write updates to csv for reingest
+    writeVIVOtoCsv(VIVOmatched)
+    writeECtoCsv(eCommonsMatched)
 
 
 if __name__ == "__main__":
