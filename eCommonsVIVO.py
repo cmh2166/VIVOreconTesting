@@ -96,6 +96,15 @@ def eCommonsRoles(eCommonsDict):
     return(eCommonsSubset)
 
 
+def matchingAlgos(string1, string2):
+    matchranking = fuzz.ratio(string1, string2)
+    matchranking2 = strikeamatch.compare_strings(string1, string2)
+    if matchranking > 75 or matchranking2 > .7:
+        print("Matching: " + string1 + " to " + string2 + " with scores: " +
+              str(matchranking) + ' | ' + str(matchranking2))
+    return(matchranking)
+
+
 def compareECtoVIVO(VIVOppl, eCommonsDict):
     """compare eCommons to VIVO."""
     print('Now matching VIVO to eCommons')
@@ -128,11 +137,7 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                 field = metadata['dim:dim']['dim:field'][m]
                 if field['@element'] == 'contributor' and field['@qualifier'] in roles:
                     for uri, label in VIVOppl.items():
-                        matchranking = fuzz.ratio(label, field['#text'])
-                        matchranking2 = strikeamatch(label, field['#text'])
-                        print("Matching: " + label + " to " + field['#text'] +
-                              " with score: " + str(matchranking) +
-                              str(matchranking2))
+                        matchranking = matchingAlgos(label, field['#text'])
                         if matchranking > 90:
                             VIVOmatchrow = [uri, label, handle]
                             VIVOmatchrow.append(field['@qualifier'])
@@ -197,7 +202,7 @@ def main():
         writeVIVOtoCsv(VIVOmatched)
         writeECtoCsv(eCommonsMatched)
     else:
-        print("Please provide a URI or list of URIs")
+        print("Please provide a URI or list of URIs as a text file")
         exit()
 
 
