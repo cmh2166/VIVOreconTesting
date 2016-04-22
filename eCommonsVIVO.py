@@ -9,6 +9,7 @@ import ecommonsharvest
 from fuzzywuzzy import fuzz
 import os.path
 import time
+import strikeamatch
 """
 Validate matches = specializations?
 """
@@ -128,14 +129,15 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                 if field['@element'] == 'contributor' and field['@qualifier'] in roles:
                     for uri, label in VIVOppl.items():
                         matchranking = fuzz.ratio(label, field['#text'])
+                        matchranking2 = strikeamatch(label, field['#text'])
                         print("Matching: " + label + " to " + field['#text'] +
-                              " with score: " + str(matchranking))
+                              " with score: " + str(matchranking) +
+                              str(matchranking2))
                         if matchranking > 90:
                             VIVOmatchrow = [uri, label, handle]
                             VIVOmatchrow.append(field['@qualifier'])
                             VIVOmatchrow.append(field['#text'])
                             VIVOmatchrow.append(subjs)
-                            VIVOmatches.append(VIVOmatchrow)
                             ECmatchrow = []
                             ECmatchrow.append(handle)
                             ECmatchrow.append(setSpecs)
@@ -144,6 +146,10 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                             ECmatchrow.append(field['@element'])
                             ECmatchrow.append(field['@qualifier'])
                             ECmatchrow.append(uri)
+                            if VIVOmatchrow not in VIVOmatches:
+                                VIVOmatches.append(VIVOmatchrow)
+                            if ECmatchrow not in eCommonsMatched:
+                                eCommonsMatched.append(ECmatchrow)
             except KeyError:
                 print('KEY ERROR AT ' + str(oaiID))
                 pass
@@ -162,7 +168,7 @@ def writeVIVOtoCsv(dictionary):
 
 def writeECtoCsv(dictionary):
     """Write the matching outputs to JSON for now. To be fixed."""
-    with open('data/ECmatched.json', 'w') as f:
+    with open('data/ECmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['handle', 'set', 'oaiID', 'subjects', 'element', 'qualifier',
                   'VIVO URI']
