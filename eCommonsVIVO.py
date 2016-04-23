@@ -10,6 +10,7 @@ import os.path
 import time
 import strikeamatch
 import argparse
+import re
 """
 Validate matches = specializations?
 """
@@ -18,6 +19,7 @@ hr = rdflib.Namespace("http://vivo.cornell.edu/ns/hr/0.9/hr.owl#")
 ns = {'http://www.openarchives.org/OAI/2.0/': None,
       'http://www.dspace.org/xmlns/dspace/dim': 'dim'}
 roles = ['chair', 'committeeMember', 'coChair', 'advisor']
+midinit_re = re.compile('([A-Za-z]+, *[A-Za-z]+ {1})([A-Za-z]){1}\.*$')
 
 
 def getVIVOppl(deptURI):
@@ -71,21 +73,24 @@ def eCommonsXMLtoDict(eCommonsXML):
 
 
 def eCommonsRoles(eCommonsDict):
-    """Grab eCommons records only with wanted roles."""
+    """Grab eCommons (DSpace) records only with wanted roles."""
     eCommonsSubset = {}
     eCommonsSubset['record'] = []
     print("Getting only eCommons records with chosen roles.")
     for n in range(len(eCommonsDict['OAI-PMH']['ListRecords']['record'])):
         try:
-            metadata = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]['metadata']
+            record = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
+            metadata = record['metadata']
         except KeyError:
             pass
         for m in range(len(metadata['dim:dim']['dim:field'])):
             field = metadata['dim:dim']['dim:field'][m]
             try:
-                if field['@element'] == 'contributor' and field['@qualifier'] in roles:
-                    eCommonsSubset['record'].append(eCommonsDict['OAI-PMH']['ListRecords']['record'][n])
-                    pass
+                elem = field['@element']
+                qualifier = field['@qualifier']
+                if elem == 'contributor' and qualifier in roles:
+                    eCommonsSubset['record'].append(record)
+                    break
                 else:
                     pass
             except KeyError:
@@ -98,11 +103,23 @@ def eCommonsRoles(eCommonsDict):
 
 def matchingAlgos(string1, string2):
     """using variety of matching algorithms to get results."""
-    matchranking = fuzz.ratio(string1, string2)
+    matchranking1 = fuzz.ratio(string1, string2)
     matchranking2 = strikeamatch.compare_strings(string1, string2) * 100
-    if matchranking > 85 or matchranking2 > 80:
-        print("Matching: " + string1 + " to " + string2 + " with scores: " +
-              str(matchranking) + ' | ' + str(matchranking2))
+    # verify match isn't based just on everything except middle inits
+    m1 = midinit_re.match(string1)
+    m2 = midinit_re.match(string2)
+    if m1 and m2:
+        if m1.group(1) == m2.group(1) and m1.group(2) != m2.group(2):
+            matchranking1 -= 10
+            matchranking2 -= 10
+            print('TESTING MID INIT MISMATCHING DECREASE')
+            print("Matching: " + string1 + " to " + string2 + " scores: " +
+                  str(matchranking1) + ' | ' + str(matchranking2))
+    # proceed with grabbing best ranking match
+    if matchranking1 > 85 or matchranking2 > 80:
+        print("Matching: " + string1 + " to " + string2 + " scores: " +
+              str(matchranking1) + ' | ' + str(matchranking2))
+    matchranking = max(matchranking1, matchranking2)
     return(matchranking)
 
 
@@ -162,24 +179,24 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
     return(VIVOmatches, eCommonsMatched)
 
 
-def writeVIVOtoCsv(dictionary):
-    """Write the matching outputs to CSV for reingest."""
+def writeVIVOtoCsv(matches):
+    """Write the matching outputs to CSV for sharing w/VIVO team."""
     with open('data/VIVOmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['uri', 'label', 'EChandle', 'element qualifier', 'EClabel',
                   'EC Subjects']
         w.writerow(header)
-        w.writerows(dictionary)
+        w.writerows(matches)
 
 
-def writeECtoCsv(dictionary):
-    """Write the matching outputs to JSON for now. To be fixed."""
+def writeECtoCsv(matches):
+    """Write the matching outputs to CSV for reingest."""
     with open('data/ECmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['handle', 'set', 'oaiID', 'subjects', 'element', 'qualifier',
                   'VIVO URI']
         w.writerow(header)
-        w.writerows(dictionary)
+        w.writerows(matches)
 
 
 def main():

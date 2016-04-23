@@ -15,9 +15,9 @@ https://gist.github.com/scotta/1063364/8b8970bb617c2f8689fedc50721e7bcc60767df8
 """
 import collections
 
+
 def _get_character_pairs(text):
     """Returns a dicttionary of adjacent character pair counts.
-
     >>> _get_character_pairs('Test is')
     defaultdict(<type 'int'>, {'IS': 1, 'TE': 1, 'ES': 1, 'ST': 1})
     >>> _get_character_pairs('Test 123')
@@ -40,7 +40,6 @@ def _get_character_pairs(text):
     ValueError: Invalid argument
 
     """
-
     if not hasattr(text, "upper"):
         raise ValueError("Invalid argument")
 
@@ -70,9 +69,7 @@ def compare_strings(string1, string2):
     1.0
     >>> compare_strings("ABCD", "AB") == compare_strings("AB", "ABCD")
     True
-
     """
-
     s1_pairs = _get_character_pairs(string1)
     s2_pairs = _get_character_pairs(string2)
 
