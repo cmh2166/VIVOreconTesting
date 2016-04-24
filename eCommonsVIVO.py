@@ -11,6 +11,7 @@ import time
 import strikeamatch
 import argparse
 import re
+import pymarc
 """
 Validate matches = specializations?
 """
@@ -69,6 +70,53 @@ def eCommonsXMLtoDict(eCommonsXML):
     """Translate eCommons XML to dict."""
     with open(eCommonsXML) as fd:
         eCommonsDict = xmltodict.parse(fd.read(), namespaces=ns)
+        eCommonsDictBibs = eCommonsAddBibs(eCommonsDict)
+    return(eCommonsDictBibs)
+
+
+def matchMARCtoEC(handle):
+    """Get Catalog BibIDs (001) for records matched to eCommons."""
+    with open('data/ETDsutf8.mrc', 'rb') as data:
+        reader = pymarc.MARCReader(data)
+        for record in reader:
+            bibID = record['001'].value()
+            bibURL = record['856']['u']
+            if handle.strip() == bibURL.strip():
+                print('Bib <=> EC match: ' + str(bibID) + ' = ' + handle)
+                return(bibID)
+            else:
+                return(None)
+
+
+def eCommonsAddBibs(eCommonsDict):
+    """Add matched Catalog Bib Ids to eCommons Dictionary."""
+    for n in range(len(eCommonsDict['OAI-PMH']['ListRecords']['record'])):
+        print('Matching Catalog bibs to eCommons records...')
+        try:
+            record = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
+            metadata = record['metadata']
+        except KeyError:
+            pass
+        for m in range(len(metadata['dim:dim']['dim:field'])):
+            field = metadata['dim:dim']['dim:field'][m]
+            try:
+                elem = field['@element']
+                qual = field['@qualifier']
+                text = field['#text']
+                if elem is 'identifier' and qual is 'uri' and 'handle' in text:
+                        bibID = matchMARCtoEC(text)
+                        if bibID:
+                            newfield = {}
+                            newfield['#text'] = bibID
+                            newfield['@element'] = 'identifier'
+                            newfield['@mdschema'] = 'dc'
+                            newfield['@qualifier'] = 'bibID'
+                            metadata['dim:dim']['dim:field'].append(newfield)
+                else:
+                    pass
+            except KeyError:
+                pass
+        print('Done matching bib IDs to eCommons records for this subset.')
     return(eCommonsDict)
 
 
@@ -87,8 +135,7 @@ def eCommonsRoles(eCommonsDict):
             field = metadata['dim:dim']['dim:field'][m]
             try:
                 elem = field['@element']
-                qualifier = field['@qualifier']
-                if elem == 'contributor' and qualifier in roles:
+                if elem == 'contributor' and field['@qualifier'] in roles:
                     eCommonsSubset['record'].append(record)
                     break
                 else:
@@ -131,6 +178,7 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
     for n in range(len(eCommonsDict['record'])):
         handle = None
         subjs = []
+        bibID = None
         record = eCommonsDict['record'][n]
         oaiID = record['header']['identifier']
         setSpecs = []
@@ -139,21 +187,29 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
         for m in range(len(metadata['dim:dim']['dim:field'])):
             try:
                 field = metadata['dim:dim']['dim:field'][m]
-                if field['@element'] == 'identifier' and field['@qualifier'] == 'uri':
+                elem = field['@element']
+                if elem == 'identifier' and field['@qualifier'] == 'uri':
                     handle = field['#text']
             except KeyError:
                 pass
-
             try:
                 field = metadata['dim:dim']['dim:field'][m]
                 if field['@element'] == 'subject':
                     subjs.append(field['#text'])
             except KeyError:
                 pass
+            try:
+                field = metadata['dim:dim']['dim:field'][m]
+                elem = field['@element']
+                if elem == 'identifier' and field['@qualifier'] == 'bibID':
+                    bibID = field['#text']
+            except KeyError:
+                pass
         for m in range(len(metadata['dim:dim']['dim:field'])):
             try:
                 field = metadata['dim:dim']['dim:field'][m]
-                if field['@element'] == 'contributor' and field['@qualifier'] in roles:
+                elem = field['@element']
+                if elem == 'contributor' and field['@qualifier'] in roles:
                     for uri, label in VIVOppl.items():
                         matchranking = matchingAlgos(label, field['#text'])
                         if matchranking > 90:
@@ -161,6 +217,7 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                             VIVOmatchrow.append(field['@qualifier'])
                             VIVOmatchrow.append(field['#text'])
                             VIVOmatchrow.append(subjs)
+                            VIVOmatchrow.append(bibID)
                             ECmatchrow = []
                             ECmatchrow.append(handle)
                             ECmatchrow.append(setSpecs)
@@ -169,6 +226,7 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                             ECmatchrow.append(field['@element'])
                             ECmatchrow.append(field['@qualifier'])
                             ECmatchrow.append(uri)
+                            ECmatchrow.append(bibID)
                             if VIVOmatchrow not in VIVOmatches:
                                 VIVOmatches.append(VIVOmatchrow)
                             if ECmatchrow not in eCommonsMatched:
@@ -184,7 +242,7 @@ def writeVIVOtoCsv(matches):
     with open('data/VIVOmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['uri', 'label', 'EChandle', 'element qualifier', 'EClabel',
-                  'EC Subjects']
+                  'EC Subjects', 'Bib ID']
         w.writerow(header)
         w.writerows(matches)
 
@@ -194,7 +252,7 @@ def writeECtoCsv(matches):
     with open('data/ECmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['handle', 'set', 'oaiID', 'subjects', 'element', 'qualifier',
-                  'VIVO URI']
+                  'VIVO URI', 'Bib ID']
         w.writerow(header)
         w.writerows(matches)
 
