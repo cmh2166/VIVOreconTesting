@@ -71,7 +71,7 @@ def eCommonsXMLtoDict(eCommonsXML):
     with open(eCommonsXML) as fd:
         eCommonsDict = xmltodict.parse(fd.read(), namespaces=ns)
         eCommonsDictBibs = eCommonsAddBibs(eCommonsDict)
-    return(eCommonsDictBibs)
+    # return(eCommonsDictBibs)
 
 
 def matchMARCtoEC(handle):
@@ -81,7 +81,6 @@ def matchMARCtoEC(handle):
         for record in reader:
             bibID = record['001'].value()
             bibURL = record['856']['u']
-            print(str(bibID) + " | " + bibURL + " | " + handle)
             if handle.strip() == bibURL.strip():
                 print('Bib <=> EC match: ' + str(bibID) + ' = ' + handle)
                 return(bibID)
@@ -93,19 +92,16 @@ def eCommonsAddBibs(eCommonsDict):
     """Add matched Catalog Bib Ids to eCommons Dictionary."""
     print('Matching Catalog bibs to eCommons records...')
     for n in range(len(eCommonsDict['OAI-PMH']['ListRecords']['record'])):
-        try:
-            record = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
+        record = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
+        if 'metadata' in record.keys():
             metadata = record['metadata']
-        except KeyError:
-            pass
-        for m in range(len(metadata['dim:dim']['dim:field'])):
-            field = metadata['dim:dim']['dim:field'][m]
-            try:
-                elem = field['@element']
-                qual = field['@qualifier']
-                text = field['#text']
-                if elem is 'identifier' and qual is 'uri' and 'handle' in text:
-                        bibID = matchMARCtoEC(text)
+            for m in range(len(metadata['dim:dim']['dim:field'])):
+                field = metadata['dim:dim']['dim:field'][m]
+                if '@qualifier' in field.keys():
+                    elem = field['@element']
+                    qualifier = field['@qualifier']
+                    if elem == 'identifier' and qualifier == 'uri':
+                        bibID = matchMARCtoEC(field['#text'])
                         if bibID:
                             newfield = {}
                             newfield['#text'] = bibID
@@ -113,12 +109,8 @@ def eCommonsAddBibs(eCommonsDict):
                             newfield['@mdschema'] = 'dc'
                             newfield['@qualifier'] = 'bibID'
                             metadata['dim:dim']['dim:field'].append(newfield)
-                else:
-                    pass
-            except KeyError:
-                pass
     print('Done matching bib IDs to eCommons records for this subset.')
-    return(eCommonsDict)
+    #return(eCommonsDict)
 
 
 def eCommonsRoles(eCommonsDict):
