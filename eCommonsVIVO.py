@@ -81,6 +81,7 @@ def matchMARCtoEC(handle):
         for record in reader:
             bibID = record['001'].value()
             bibURL = record['856']['u']
+            print(str(bibID) + " | " + bibURL + " | " + handle)
             if handle.strip() == bibURL.strip():
                 print('Bib <=> EC match: ' + str(bibID) + ' = ' + handle)
                 return(bibID)
@@ -90,8 +91,8 @@ def matchMARCtoEC(handle):
 
 def eCommonsAddBibs(eCommonsDict):
     """Add matched Catalog Bib Ids to eCommons Dictionary."""
+    print('Matching Catalog bibs to eCommons records...')
     for n in range(len(eCommonsDict['OAI-PMH']['ListRecords']['record'])):
-        print('Matching Catalog bibs to eCommons records...')
         try:
             record = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
             metadata = record['metadata']
@@ -116,7 +117,7 @@ def eCommonsAddBibs(eCommonsDict):
                     pass
             except KeyError:
                 pass
-        print('Done matching bib IDs to eCommons records for this subset.')
+    print('Done matching bib IDs to eCommons records for this subset.')
     return(eCommonsDict)
 
 
