@@ -132,15 +132,17 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
         handle = None
         bibID = None
         subjs = []
+        title = None
+        pubdate = None
         record = eCommonsDict['record'][n]
         oaiID = record['header']['identifier']
         setSpecs = []
         setSpecs.append(record['header']['setSpec'])
         metadata = record['metadata']
         for m in range(len(metadata['dim:dim']['dim:field'])):
+            field = metadata['dim:dim']['dim:field'][m]
+            elem = field['@element']
             try:
-                field = metadata['dim:dim']['dim:field'][m]
-                elem = field['@element']
                 if elem == 'identifier' and field['@qualifier'] == 'uri':
                     handle = field['#text']
                     if bib2hdl[handle]:
@@ -148,7 +150,16 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
             except KeyError:
                 pass
             try:
-                field = metadata['dim:dim']['dim:field'][m]
+                if elem == 'title':
+                    title = field['#text']
+            except KeyError:
+                pass
+            try:
+                if elem == 'date' and field['@qualifier'] == 'issued':
+                    pubdate = field['#text']
+            except KeyError:
+                pass
+            try:
                 if field['@element'] == 'subject':
                     subjs.append(field['#text'])
             except KeyError:
@@ -164,6 +175,8 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                             VIVOmatchrow = [uri, label, handle]
                             VIVOmatchrow.append(field['@qualifier'])
                             VIVOmatchrow.append(field['#text'])
+                            VIVOmatchrow.append(title)
+                            VIVOmatchrow.append(pubdate)
                             VIVOmatchrow.append(subjs)
                             VIVOmatchrow.append(bibID)
                             ECmatchrow = []
@@ -190,7 +203,7 @@ def writeVIVOtoCsv(matches):
     with open('data/VIVOmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['uri', 'label', 'EChandle', 'element qualifier', 'EClabel',
-                  'EC Subjects', 'bib id']
+                  'title', 'pubdate', 'EC Subjects', 'bib id']
         w.writerow(header)
         w.writerows(matches)
 
