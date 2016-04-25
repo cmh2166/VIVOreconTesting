@@ -11,7 +11,7 @@ import time
 import strikeamatch
 import argparse
 import re
-import pymarc
+import EC2MARC
 """
 Validate matches = specializations?
 """
@@ -57,7 +57,6 @@ def getVIVOppl(deptURI):
 
 def retrieveECommons():
     """grab eCommons data if not existant/too old."""
-    print("Testing last retrieval date of eCommons.")
     lastECgrabdate = os.path.getmtime('data/eCommons.xml')
     if time.time() - lastECgrabdate > (3 * 30 * 24 * 60 * 60):
         print("Too old. Grabbing new eCommons dataset.")
@@ -70,47 +69,7 @@ def eCommonsXMLtoDict(eCommonsXML):
     """Translate eCommons XML to dict."""
     with open(eCommonsXML) as fd:
         eCommonsDict = xmltodict.parse(fd.read(), namespaces=ns)
-        eCommonsDictBibs = eCommonsAddBibs(eCommonsDict)
-    # return(eCommonsDictBibs)
-
-
-def matchMARCtoEC(handle):
-    """Get Catalog BibIDs (001) for records matched to eCommons."""
-    with open('data/ETDsutf8.mrc', 'rb') as data:
-        reader = pymarc.MARCReader(data)
-        for record in reader:
-            bibID = record['001'].value()
-            bibURL = record['856']['u']
-            if handle.strip() == bibURL.strip():
-                print('Bib <=> EC match: ' + str(bibID) + ' = ' + handle)
-                return(bibID)
-            else:
-                return(None)
-
-
-def eCommonsAddBibs(eCommonsDict):
-    """Add matched Catalog Bib Ids to eCommons Dictionary."""
-    print('Matching Catalog bibs to eCommons records...')
-    for n in range(len(eCommonsDict['OAI-PMH']['ListRecords']['record'])):
-        record = eCommonsDict['OAI-PMH']['ListRecords']['record'][n]
-        if 'metadata' in record.keys():
-            metadata = record['metadata']
-            for m in range(len(metadata['dim:dim']['dim:field'])):
-                field = metadata['dim:dim']['dim:field'][m]
-                if '@qualifier' in field.keys():
-                    elem = field['@element']
-                    qualifier = field['@qualifier']
-                    if elem == 'identifier' and qualifier == 'uri':
-                        bibID = matchMARCtoEC(field['#text'])
-                        if bibID:
-                            newfield = {}
-                            newfield['#text'] = bibID
-                            newfield['@element'] = 'identifier'
-                            newfield['@mdschema'] = 'dc'
-                            newfield['@qualifier'] = 'bibID'
-                            metadata['dim:dim']['dim:field'].append(newfield)
-    print('Done matching bib IDs to eCommons records for this subset.')
-    #return(eCommonsDict)
+    return(eCommonsDict)
 
 
 def eCommonsRoles(eCommonsDict):
@@ -168,10 +127,11 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
     print('Now matching VIVO to eCommons')
     VIVOmatches = []
     eCommonsMatched = []
+    bib2hdl = EC2MARC.main()
     for n in range(len(eCommonsDict['record'])):
         handle = None
-        subjs = []
         bibID = None
+        subjs = []
         record = eCommonsDict['record'][n]
         oaiID = record['header']['identifier']
         setSpecs = []
@@ -183,19 +143,14 @@ def compareECtoVIVO(VIVOppl, eCommonsDict):
                 elem = field['@element']
                 if elem == 'identifier' and field['@qualifier'] == 'uri':
                     handle = field['#text']
+                    if bib2hdl[handle]:
+                        bibID = bib2hdl[handle]
             except KeyError:
                 pass
             try:
                 field = metadata['dim:dim']['dim:field'][m]
                 if field['@element'] == 'subject':
                     subjs.append(field['#text'])
-            except KeyError:
-                pass
-            try:
-                field = metadata['dim:dim']['dim:field'][m]
-                elem = field['@element']
-                if elem == 'identifier' and field['@qualifier'] == 'bibID':
-                    bibID = field['#text']
             except KeyError:
                 pass
         for m in range(len(metadata['dim:dim']['dim:field'])):
@@ -235,7 +190,7 @@ def writeVIVOtoCsv(matches):
     with open('data/VIVOmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['uri', 'label', 'EChandle', 'element qualifier', 'EClabel',
-                  'EC Subjects', 'Bib ID']
+                  'EC Subjects', 'bib id']
         w.writerow(header)
         w.writerows(matches)
 
@@ -245,7 +200,7 @@ def writeECtoCsv(matches):
     with open('data/ECmatched.csv', 'w') as f:
         w = csv.writer(f)
         header = ['handle', 'set', 'oaiID', 'subjects', 'element', 'qualifier',
-                  'VIVO URI', 'Bib ID']
+                  'VIVO URI', 'bib id']
         w.writerow(header)
         w.writerows(matches)
 
@@ -270,6 +225,7 @@ def main():
             URIs = f.readlines()
         VIVOppl = getVIVOppl(URIs)
     # grab eCommons data
+    print("Testing last retrieval date of eCommons.")
     retrieveECommons()
     eCommonsAll = eCommonsXMLtoDict("data/eCommons.xml")
     # only review records that have roles to be queried
